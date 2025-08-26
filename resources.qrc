@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>resources/input_pix.bmp</file>
+        <file>resources/start_pix.bmp</file>
+    </qresource>
+</RCC>
