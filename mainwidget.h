@@ -35,6 +35,14 @@ protected:
 
     void ClickAndSendPlusSymbol(const QPoint& point_to_click);
 
+    void closeEvent(QCloseEvent* event) override;
+
+private:
+
+    void ReadSettings();
+
+    void SaveSettings();
+
 private:
 
     OpenCLImageFinder finder_;

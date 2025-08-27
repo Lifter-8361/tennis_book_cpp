@@ -12,13 +12,70 @@
 #include <QDebug>
 #include <QSpinBox>
 #include <QElapsedTimer>
+#include <QSettings>
 
 #include "input_simulator.h"
+
+namespace helpers
+{
+	namespace settings
+	{
+		namespace keys
+		{
+			const QString monitor_number = "monitor_number";
+			const QString detect_area_x = "detect_area_x";
+			const QString detect_area_y = "detect_area_y";
+			const QString detect_area_width = "detect_area_width";
+			const QString detect_area_height = "detect_area_height";
+			const QString mouse_click_x = "mouse_click_x";
+			const QString mouse_click_y = "mouse_click_y";
+		}
+
+		namespace default_values
+		{
+			const int monitor_number = 0;
+			const int detect_area_x = 375;
+			const int detect_area_y = 160;
+			const int detect_area_width = 550;
+			const int detect_area_height = 950;
+			const int mouse_click_x = 2500;
+			const int mouse_click_y = 1100;
+		}
+	}
+}
 
 MainWidget::MainWidget(QWidget *parent)
     : QWidget(parent)
 {
+	ReadSettings();
     CreateUi();
+}
+
+void MainWidget::ReadSettings()
+{
+	using namespace helpers::settings;
+	QSettings settings;
+	monitor_number_ = settings.value(keys::monitor_number, default_values::monitor_number).toInt();
+	detect_area_.x = settings.value(keys::detect_area_x, default_values::detect_area_x).toInt();
+	detect_area_.y = settings.value(keys::detect_area_y, default_values::detect_area_y).toInt();
+	detect_area_.width = settings.value(keys::detect_area_width, default_values::detect_area_width).toInt();
+	detect_area_.height = settings.value(keys::detect_area_height, default_values::detect_area_height).toInt();
+	mouse_click_point_.rx() = settings.value(keys::mouse_click_x, default_values::mouse_click_x).toInt();
+	mouse_click_point_.ry() = settings.value(keys::mouse_click_y, default_values::mouse_click_y).toInt();
+}
+
+void MainWidget::SaveSettings()
+{
+	using namespace helpers::settings;
+	QSettings settings;
+	settings.setValue(keys::monitor_number, monitor_number_);
+	settings.setValue(keys::detect_area_x, detect_area_.x);
+	settings.setValue(keys::detect_area_y, detect_area_.y);
+	settings.setValue(keys::detect_area_width, detect_area_.width);
+	settings.setValue(keys::detect_area_height, detect_area_.height);
+	settings.setValue(keys::mouse_click_x, mouse_click_point_.x());
+	settings.setValue(keys::mouse_click_y, mouse_click_point_.y());
+	settings.sync();
 }
 
 MainWidget::~MainWidget() = default;
@@ -46,18 +103,19 @@ QLayout* MainWidget::CreateMonitorControl()
 
 	QLabel* lbl = new QLabel;
 	lbl->setText(QString::fromUtf8("Монитор"));
-	QSpinBox* monitor_number_combo = new QSpinBox;
-	monitor_number_combo->setMinimum(0);
-	monitor_number_combo->setMaximum(screen_list.size());
+	QSpinBox* monitor_number_spin = new QSpinBox;
+	monitor_number_spin->setMinimum(0);
+	monitor_number_spin->setMaximum(screen_list.size());
+	monitor_number_spin->setValue(monitor_number_);
 	QPushButton* test_image = new QPushButton;
 	test_image->setText(QString::fromUtf8("Тест"));
 	bool connection = connect(test_image, &QPushButton::clicked, this, &MainWidget::OnTestMonitorImageButtonClicked); Q_ASSERT(connection);
 
 	QHBoxLayout* monitor_lay = new QHBoxLayout;
 	monitor_lay->addWidget(lbl);
-	monitor_lay->addWidget(monitor_number_combo);
+	monitor_lay->addWidget(monitor_number_spin);
 	monitor_lay->addWidget(test_image);
-	connection = connect(monitor_number_combo, qOverload<int>(&QSpinBox::valueChanged), this, &MainWidget::OnMonitorNumberChanged); Q_ASSERT(connection);
+	connection = connect(monitor_number_spin, qOverload<int>(&QSpinBox::valueChanged), this, &MainWidget::OnMonitorNumberChanged); Q_ASSERT(connection);
 	return monitor_lay;
 }
 
@@ -231,4 +289,10 @@ void MainWidget::ClickAndSendPlusSymbol(const QPoint& point_to_click)
 {
 	InputSimulator simulator;
 	simulator.executeFullSequence(point_to_click, 0);
+}
+
+void MainWidget::closeEvent(QCloseEvent* event)
+{
+	SaveSettings();
+	QWidget::closeEvent(event);
 }
