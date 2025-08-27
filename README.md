@@ -1,2 +1,2 @@
-# tennis_book_cpp
-Утилита для записи на теннис
+# book_tennis_client и book_tennis_server
+Клиент-серверная утилита для записи на теннис
