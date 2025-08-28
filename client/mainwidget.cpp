@@ -94,7 +94,6 @@ void MainWidget::CreateUi()
 	bool connection = connect(start_button, &QPushButton::clicked, this, &MainWidget::OnStartButtonClicked); Q_ASSERT(connection);
 
 	setLayout(main_lay);
-
 }
 
 QLayout* MainWidget::CreateMonitorControl()
@@ -190,14 +189,14 @@ QLayout* MainWidget::CreateClickControl()
 	connection = connect(test_click, &QPushButton::clicked, this, [&]() {
 		InputSimulator simulator;
 		simulator.moveAndClick(mouse_click_point_, 0);
-		});
-	Q_ASSERT(connection);
+		}); Q_ASSERT(connection);
+
 	return grid_lay;
 }
 
 void MainWidget::OnStartButtonClicked()
 {
-    qDebug() << "device_info = " << finder_.getDeviceInfo();
+    qDebug() << "device_info = " << finder_.GetDeviceInfo();
     //Тут добавить проверку на то, что список устройств не пуст
 
     QImage target_image("://resources/input_pix.bmp");//тут загрузить изображение из ресурсов
@@ -226,11 +225,11 @@ void MainWidget::OnStartButtonClicked()
     {
         QPixmap screenshot = screen->grabWindow(0);
         QImage source_image = screenshot.toImage();
-        source_image = source_image.copy(0, source_image.height() - 200, 400, 200);
+        source_image = source_image.copy(0, source_image.height() - 200, 400, 200); // В идеале от этого избавиться
 
         QElapsedTimer timer;
         timer.start();
-        QPoint found_pos = finder_.findFirstMatchMinimal(source_image, target_image, 0.95);
+        QPoint found_pos = finder_.FindFirstMatchMinimal(source_image, target_image, 0.95); // 0.95 по-умолчанию. Выпилить эту константу в таком виде
         if (found_pos.x() != -1)
         {
             image_detected = true;
@@ -252,17 +251,19 @@ void MainWidget::OnStartButtonClicked()
 
 		QElapsedTimer timer;
 		timer.start();
-		QPoint found_pos = finder_.findFirstMatchMinimal(source_image, message_image, 0.95);
+		QPoint found_pos = finder_.FindFirstMatchMinimal(source_image, message_image, 0.95);
 		if (found_pos.x() != -1)
 		{
 			image_detected = true;
 			msec_duration = timer.elapsed();
+			qDebug() << QString::fromUtf8("Image detected. Duration : %1 msecs").arg(msec_duration);
 		}
     }
 
-    qDebug() << QString::fromUtf8("Image detected. Duration : %1 msecs").arg(msec_duration);
-
+	QElapsedTimer timer;
+	timer.start();
 	ClickAndSendPlusSymbol(mouse_click_point_);
+	qDebug() << QString::fromUtf8("Clicked and sent plus. Duration : %1 msecs").arg(timer.elapsed());
 }
 
 
@@ -281,7 +282,7 @@ void MainWidget::OnTestMonitorImageButtonClicked() // автоматизиров
 
 	QLabel* lbl = new QLabel;
 	lbl->setPixmap(QPixmap::fromImage(source_image));
-	lbl->setGeometry(10, 10, 100, 100);
+	lbl->setGeometry(100, 100, 100, 100);
 	lbl->show();
 }
 

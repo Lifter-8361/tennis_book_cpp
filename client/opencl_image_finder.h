@@ -6,32 +6,32 @@
 #include <QVector>
 #include <CL/opencl.h>
 
-class OpenCLImageFinder : public QObject
+class OpenCLImageFinder final
+	: public QObject
 {
 	Q_OBJECT
 
 public:
 	explicit OpenCLImageFinder(QObject* parent = nullptr);
-	~OpenCLImageFinder();
+	~OpenCLImageFinder() override;
 
-	bool initializeOpenCL();
-	QPoint findFirstMatchMinimal(const QImage& source, const QImage& target,
-		double requiredSimilarity = 0.95);
+	bool InitializeOpenCL();
+	QPoint FindFirstMatchMinimal(const QImage& source, const QImage& target, double requiredSimilarity = 0.95);
 
-	QString getDeviceInfo() const;
+	QString GetDeviceInfo() const;
 
 private:
-	bool compileKernel();
-	void cleanupOpenCL();
-	void printDeviceInfo() const;
+	bool CompileKernel();
+	void CleanupOpenCL();
+	void PrintDeviceInfo() const;
 
-	QImage convertToGrayscale(const QImage& image);
-	QVector<float> convertGrayscaleToFloatArray(const QImage& grayscaleImage);
+	QImage ConvertToGrayscale(const QImage& image);
+	QVector<float> ConvertGrayscaleToFloatArray(const QImage& grayscaleImage);
 
-	cl_context context;
-	cl_device_id device;
-	cl_command_queue queue;
-	cl_program program;
-	cl_kernel kernel;
-	bool isInitialized;
+	cl_context context_;
+	cl_device_id device_;
+	cl_command_queue queue_;
+	cl_program program_;
+	cl_kernel kernel_;
+	bool is_initialized_;
 };

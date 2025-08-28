@@ -35,7 +35,7 @@ public:
     {
         if (!sendKeyPlus())
         {
-            qWarning() << "Не удалось отправить '+'";
+            qWarning() << QString::fromUtf8("Не удалось отправить '+'");
             return false;
         }
         
@@ -45,7 +45,7 @@ public:
         }
         if (!sendEnter())
         {
-            qWarning() << "Не удалось отправить Enter";
+            qWarning() << QString::fromUtf8("Не удалось отправить Enter");
             return false;
         }
         
@@ -56,7 +56,7 @@ public:
     // Полная последовательность действий
     bool executeFullSequence(const QPoint &point, int delayBetweenSteps = 0)
     {
-        qDebug() << "Запуск полной последовательности...";
+        qDebug() << QString::fromUtf8("Запуск полной последовательности...");
         
         if (!moveAndClick(point, delayBetweenSteps)) {
             return false;
@@ -66,7 +66,7 @@ public:
             return false;
         }
         
-        qDebug() << "Последовательность выполнена успешно!";
+        qDebug() << QString::fromUtf8("Последовательность выполнена успешно!");
         return true;
     }
 
@@ -94,7 +94,7 @@ private:
         UINT sent = SendInput(2, inputs, sizeof(INPUT));
         if (sent == 2)
         {
-            qDebug() << "Левый клик выполнен";
+            qDebug() << QString::fromUtf8("Левый клик выполнен");
         }
     }
     
@@ -131,7 +131,7 @@ private:
 
 		UINT sent = SendInput(inputs.size(), inputs.data(), sizeof(INPUT));
 		if (sent == inputs.size()) {
-			qDebug() << "Отправлен символ '+'";
+			qDebug() << QString::fromUtf8("Отправлен символ '+'");
 			return true;
 		}
     }
@@ -154,11 +154,11 @@ private:
         
         UINT sent = SendInput(2, inputs, sizeof(INPUT));
         if (sent == 2) {
-            qDebug() << "Отправлен Enter";
+            qDebug() << QString::fromUtf8("Отправлен Enter");
             return true;
         }
         #else
-        qDebug() << "Отправка Enter поддерживается только на Windows";
+        qDebug() << QString::fromUtf8("Отправка Enter поддерживается только на Windows");
         #endif
         return false;
     }

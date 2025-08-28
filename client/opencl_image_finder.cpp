@@ -4,87 +4,120 @@
 #include <QThread>
 #include <cmath>
 
+#if DEBUG_GRAYSCALE
+#include <QLabel>
+#endif
+
 #define CL_TARGET_OPENCL_VERSION 120
 
 #define DEBUG_GRAYSCALE 0
 
 OpenCLImageFinder::OpenCLImageFinder(QObject* parent)
-	: QObject(parent), context(nullptr), device(nullptr),
-	queue(nullptr), program(nullptr), kernel(nullptr), isInitialized(false)
+	: QObject(parent)
+	, context_(nullptr)
+	, device_(nullptr)
+	, queue_(nullptr)
+	, program_(nullptr)
+	, kernel_(nullptr)
+	, is_initialized_(false)
 {
 }
 
 OpenCLImageFinder::~OpenCLImageFinder()
 {
-	cleanupOpenCL();
+	CleanupOpenCL();
 }
 
-void OpenCLImageFinder::cleanupOpenCL()
+void OpenCLImageFinder::CleanupOpenCL()
 {
-	if (kernel) clReleaseKernel(kernel);
-	if (program) clReleaseProgram(program);
-	if (queue) clReleaseCommandQueue(queue);
-	if (context) clReleaseContext(context);
+	if (kernel_)
+	{
+		clReleaseKernel(kernel_);
+	}
 
-	kernel = nullptr;
-	program = nullptr;
-	queue = nullptr;
-	context = nullptr;
-	isInitialized = false;
+	if (program_)
+	{
+		clReleaseProgram(program_);
+	}
+
+	if (queue_)
+	{
+		clReleaseCommandQueue(queue_);
+	}
+
+	if (context_)
+	{
+		clReleaseContext(context_);
+	}
+
+	kernel_ = nullptr;
+	program_ = nullptr;
+	queue_ = nullptr;
+	context_ = nullptr;
+	is_initialized_ = false;
 }
 
-bool OpenCLImageFinder::initializeOpenCL()
+bool OpenCLImageFinder::InitializeOpenCL()
 {
-	if (isInitialized) return true;
+	if (is_initialized_)
+	{
+		return true;
+	}
 
 	cl_int err;
 	cl_platform_id platform;
 
 	err = clGetPlatformIDs(1, &platform, nullptr);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Ошибка получения платформы OpenCL:" << err;
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Ошибка получения платформы OpenCL : ") << err;
 		return false;
 	}
 
 	cl_device_type deviceType = CL_DEVICE_TYPE_GPU;
-	err = clGetDeviceIDs(platform, deviceType, 1, &device, nullptr);
-	if (err != CL_SUCCESS) {
-		qWarning() << "GPU не найден, пробуем CPU...";
+	err = clGetDeviceIDs(platform, deviceType, 1, &device_, nullptr);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("GPU не найден, пробуем CPU...");
 		deviceType = CL_DEVICE_TYPE_CPU;
-		err = clGetDeviceIDs(platform, deviceType, 1, &device, nullptr);
-		if (err != CL_SUCCESS) {
-			qWarning() << "Ошибка получения устройства OpenCL:" << err;
+		err = clGetDeviceIDs(platform, deviceType, 1, &device_, nullptr);
+		if (err != CL_SUCCESS)
+		{
+			qWarning() << QString::fromUtf8("Ошибка получения устройства OpenCL:") << err;
 			return false;
 		}
 	}
 
-	context = clCreateContext(nullptr, 1, &device, nullptr, nullptr, &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Ошибка создания контекста:" << err;
+	context_ = clCreateContext(nullptr, 1, &device_, nullptr, nullptr, &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Ошибка создания контекста:") << err;
 		return false;
 	}
 
-	queue = clCreateCommandQueue(context, device, 0, &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Ошибка создания очереди команд:" << err;
-		cleanupOpenCL();
+	queue_ = clCreateCommandQueue(context_, device_, 0, &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Ошибка создания очереди команд:") << err;
+		CleanupOpenCL();
 		return false;
 	}
-	printDeviceInfo();
+	PrintDeviceInfo();
 
-	if (!compileKernel()) {
-		cleanupOpenCL();
+	if (!CompileKernel())
+	{
+		CleanupOpenCL();
 		return false;
 	}
 
-	printDeviceInfo();
-	isInitialized = true;
+	PrintDeviceInfo();
+	is_initialized_ = true;
 	return true;
 }
 
-bool OpenCLImageFinder::compileKernel()
+bool OpenCLImageFinder::CompileKernel()
 {
-	const char* kernelSource = R"(
+	const char* kernel_source = R"(
     __kernel void findFirstMatchMinimal(
         __global const float* source,
         __global const float* target,
@@ -151,64 +184,73 @@ bool OpenCLImageFinder::compileKernel()
     )";
 
 	cl_int err;
-	program = clCreateProgramWithSource(context, 1, &kernelSource, nullptr, &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Create program error : " << err;
+	program_ = clCreateProgramWithSource(context_, 1, &kernel_source, nullptr, &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Create program error : ") << err;
 		return false;
 	}
 
-	err = clBuildProgram(program, 1, &device, nullptr, nullptr, nullptr);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Compile program error. kernel : " << err;
+	err = clBuildProgram(program_, 1, &device_, nullptr, nullptr, nullptr);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Compile program error. kernel : ") << err;
 
 		size_t logSize;
-		clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, 0, nullptr, &logSize);
+		clGetProgramBuildInfo(program_, device_, CL_PROGRAM_BUILD_LOG, 0, nullptr, &logSize);
 		QVector<char> log(logSize);
-		clGetProgramBuildInfo(program, device, CL_PROGRAM_BUILD_LOG, logSize, log.data(), nullptr);
-		qWarning() << "Compilation log : " << log.data();
+		clGetProgramBuildInfo(program_, device_, CL_PROGRAM_BUILD_LOG, logSize, log.data(), nullptr);
+		qWarning() << QString::fromUtf8("Compilation log : ") << log.data();
 
 		return false;
 	}
 
-	kernel = clCreateKernel(program, "findFirstMatchMinimal", &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Creation error. kernel : " << err;
+	kernel_ = clCreateKernel(program_, "findFirstMatchMinimal", &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Creation error. kernel : ") << err;
 		return false;
 	}
 
 	return true;
 }
 
-void OpenCLImageFinder::printDeviceInfo() const
+void OpenCLImageFinder::PrintDeviceInfo() const
 {
-	if (!device) return;
+	if (!device_) return;
 
 	char deviceName[128] = { 0 };
-	clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
+	clGetDeviceInfo(device_, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
 
 	cl_ulong globalMemSize;
-	clGetDeviceInfo(device, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, nullptr);
+	clGetDeviceInfo(device_, CL_DEVICE_GLOBAL_MEM_SIZE, sizeof(globalMemSize), &globalMemSize, nullptr);
 
 	size_t maxWorkGroupSize;
-	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
+	clGetDeviceInfo(device_, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
 
-	qDebug() << "OpenCL Device : " << deviceName;
-	qDebug() << "Global Memory : " << globalMemSize / (1024 * 1024) << " MB";
-	qDebug() << "Max Work Group Size : " << maxWorkGroupSize;
+	qDebug() << QString::fromUtf8("OpenCL Device : ") << deviceName;
+	qDebug() << QString::fromUtf8("Global Memory : ") << globalMemSize / (1024 * 1024) << QString::fromUtf8(" MB");
+	qDebug() << QString::fromUtf8("Max Work Group Size : ") << maxWorkGroupSize;
 }
 
-QImage OpenCLImageFinder::convertToGrayscale(const QImage& image)
+QImage OpenCLImageFinder::ConvertToGrayscale(const QImage& image)
 {
-	if (image.isNull()) return QImage();
-	if (image.format() == QImage::Format_Grayscale8) {
+	if (image.isNull())
+	{
+		return QImage();
+	}
+	else if (image.format() == QImage::Format_Grayscale8)
+	{
 		return image;
 	}
+
 	return image.convertToFormat(QImage::Format_Grayscale8);
 }
 
-QVector<float> OpenCLImageFinder::convertGrayscaleToFloatArray(const QImage& grayscaleImage)
+QVector<float> OpenCLImageFinder::ConvertGrayscaleToFloatArray(const QImage& grayscaleImage)
 {
-	if (grayscaleImage.isNull() || grayscaleImage.format() != QImage::Format_Grayscale8) {
+	if (grayscaleImage.isNull() || grayscaleImage.format() != QImage::Format_Grayscale8)
+	{
 		return QVector<float>();
 	}
 
@@ -216,9 +258,11 @@ QVector<float> OpenCLImageFinder::convertGrayscaleToFloatArray(const QImage& gra
 	const int height = grayscaleImage.height();
 	QVector<float> array(width * height);
 
-	for (int y = 0; y < height; y++) {
+	for (int y = 0; y < height; y++)
+	{
 		const uchar* scanLine = grayscaleImage.constScanLine(y);
-		for (int x = 0; x < width; x++) {
+		for (int x = 0; x < width; x++)
+		{
 			float float_v = static_cast<float>(scanLine[x]);
 			array[y * width + x] = static_cast<float>(scanLine[x]) / 255.0f;
 		}
@@ -227,21 +271,18 @@ QVector<float> OpenCLImageFinder::convertGrayscaleToFloatArray(const QImage& gra
 	return array;
 }
 
-#if DEBUG_GRAYSCALE
-	#include <QLabel>
-#endif
-
-QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QImage& target,
+QPoint OpenCLImageFinder::FindFirstMatchMinimal(const QImage& source, const QImage& target,
 	double requiredSimilarity)
 {
-	if (!isInitialized && !initializeOpenCL())
+	if (!is_initialized_ && !InitializeOpenCL())
 	{
-		qWarning() << "OpenCL is not initialized.";
+		qWarning() << QString::fromUtf8("OpenCL is not initialized.");
 		return QPoint(-1, -1);
 	}
 
-	if (source.isNull() || target.isNull()) {
-		qWarning() << "images not loaded.";
+	if (source.isNull() || target.isNull())
+	{
+		qWarning() << QString::fromUtf8("images not loaded.");
 		return QPoint(-1, -1);
 	}
 
@@ -249,11 +290,12 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	timer.start();
 
 	// Конвертируем в grayscale
-	QImage sourceGray = convertToGrayscale(source);
-	QImage targetGray = convertToGrayscale(target);
+	QImage source_grayscale_img = ConvertToGrayscale(source);
+	QImage target_grayscale_img = ConvertToGrayscale(target);
 
-	if (sourceGray.isNull() || targetGray.isNull()) {
-		qWarning() << "Convert to grayscale error!";
+	if (source_grayscale_img.isNull() || target_grayscale_img.isNull())
+	{
+		qWarning() << QString::fromUtf8("Convert to grayscale error!");
 		return QPoint(-1, -1);
 	}
 
@@ -266,19 +308,20 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 			lbl->show();
 		};
 
-	display_image("sourceGray", sourceGray);
-	display_image("targetGray", targetGray);
+	display_image("sourceGray", source_grayscale_img);
+	display_image("targetGray", target_grayscale_img);
 	display_image("source", source);
 	display_image("target", target);
 #endif
 
-	const int sourceWidth = sourceGray.width();
-	const int sourceHeight = sourceGray.height();
-	const int targetWidth = targetGray.width();
-	const int targetHeight = targetGray.height();
+	const int sourceWidth = source_grayscale_img.width();
+	const int sourceHeight = source_grayscale_img.height();
+	const int targetWidth = target_grayscale_img.width();
+	const int targetHeight = target_grayscale_img.height();
 
-	if (targetWidth > sourceWidth || targetHeight > sourceHeight) {
-		qWarning() << "Target image greater than source. Error.";
+	if (targetWidth > sourceWidth || targetHeight > sourceHeight)
+	{
+		qWarning() << QString::fromUtf8("Target image greater than source. Error.");
 		return QPoint(-1, -1);
 	}
 
@@ -286,7 +329,7 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	const int resultHeight = sourceHeight - targetHeight;
 
 	if (resultWidth <= 0 || resultHeight <= 0) {
-		qWarning() << "Invalid size";
+		qWarning() << QString::fromUtf8("Invalid size");
 		return QPoint(-1, -1);
 	}
 
@@ -295,11 +338,12 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	//	<< "порог:" << requiredSimilarity;
 
 	// Конвертируем в float arrays
-	QVector<float> sourceData = convertGrayscaleToFloatArray(sourceGray);
-	QVector<float> targetData = convertGrayscaleToFloatArray(targetGray);
+	QVector<float> source_data = ConvertGrayscaleToFloatArray(source_grayscale_img);
+	QVector<float> target_data = ConvertGrayscaleToFloatArray(target_grayscale_img);
 
-	if (sourceData.isEmpty() || targetData.isEmpty()) {
-		qWarning() << "Convert float arrays ERROR!";
+	if (source_data.isEmpty() || target_data.isEmpty())
+	{
+		qWarning() << QString::fromUtf8("Convert float arrays ERROR!");
 		return QPoint(-1, -1);
 	}
 
@@ -312,43 +356,45 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	cl_mem outputBuffer = nullptr;
 
 	// Создаем буферы
-	sourceBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-		sourceData.size() * sizeof(float), sourceData.data(), &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Create source source buffer error : " << err;
+	sourceBuffer = clCreateBuffer(context_, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
+		source_data.size() * sizeof(float), source_data.data(), &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Create source source buffer error : ") << err;
 		return QPoint(-1, -1);
 	}
 
-	targetBuffer = clCreateBuffer(context, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR,
-		targetData.size() * sizeof(float), targetData.data(), &err);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Create target buffer error : " << err;
+	targetBuffer = clCreateBuffer(context_, CL_MEM_READ_ONLY | CL_MEM_COPY_HOST_PTR, target_data.size() * sizeof(float), target_data.data(), &err);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Create target buffer error : ") << err;
 		clReleaseMemObject(sourceBuffer);
 		return QPoint(-1, -1);
 	}
 
-	outputBuffer = clCreateBuffer(context, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
+	outputBuffer = clCreateBuffer(context_, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR,
 		3 * sizeof(int), outputData, &err);
 	if (err != CL_SUCCESS) {
-		qWarning() << "Create output buffer error : " << err;
+		qWarning() << QString::fromUtf8("Create output buffer error : ") << err;
 		clReleaseMemObject(sourceBuffer);
 		clReleaseMemObject(targetBuffer);
 		return QPoint(-1, -1);
 	}
 
 	// Устанавливаем аргументы kernel
-	err = clSetKernelArg(kernel, 0, sizeof(cl_mem), &sourceBuffer);
-	err |= clSetKernelArg(kernel, 1, sizeof(cl_mem), &targetBuffer);
-	err |= clSetKernelArg(kernel, 2, sizeof(cl_mem), &outputBuffer);
-	err |= clSetKernelArg(kernel, 3, sizeof(int), &sourceWidth);
-	err |= clSetKernelArg(kernel, 4, sizeof(int), &sourceHeight);
-	err |= clSetKernelArg(kernel, 5, sizeof(int), &targetWidth);
-	err |= clSetKernelArg(kernel, 6, sizeof(int), &targetHeight);
+	err = clSetKernelArg(kernel_, 0, sizeof(cl_mem), &sourceBuffer);
+	err |= clSetKernelArg(kernel_, 1, sizeof(cl_mem), &targetBuffer);
+	err |= clSetKernelArg(kernel_, 2, sizeof(cl_mem), &outputBuffer);
+	err |= clSetKernelArg(kernel_, 3, sizeof(int), &sourceWidth);
+	err |= clSetKernelArg(kernel_, 4, sizeof(int), &sourceHeight);
+	err |= clSetKernelArg(kernel_, 5, sizeof(int), &targetWidth);
+	err |= clSetKernelArg(kernel_, 6, sizeof(int), &targetHeight);
 	float req_sim = static_cast<float>(requiredSimilarity);
-	err |= clSetKernelArg(kernel, 7, sizeof(float), &req_sim);
+	err |= clSetKernelArg(kernel_, 7, sizeof(float), &req_sim);
 
-	if (err != CL_SUCCESS) {
-		qWarning() << "Set arguments error. kernel : " << err;
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Set arguments error. kernel : ") << err;
 		clReleaseMemObject(sourceBuffer);
 		clReleaseMemObject(targetBuffer);
 		clReleaseMemObject(outputBuffer);
@@ -357,10 +403,11 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 
 	// Определяем размеры рабочих групп
 	size_t maxWorkGroupSize;
-	clGetDeviceInfo(device, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
+	clGetDeviceInfo(device_, CL_DEVICE_MAX_WORK_GROUP_SIZE, sizeof(maxWorkGroupSize), &maxWorkGroupSize, nullptr);
 
 	size_t localWorkSize[2] = { 16, 16 };
-	if (maxWorkGroupSize < 256) {
+	if (maxWorkGroupSize < 256)
+	{
 		localWorkSize[0] = 8;
 		localWorkSize[1] = 8;
 	}
@@ -371,9 +418,10 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	};
 
 	// Запускаем kernel
-	err = clEnqueueNDRangeKernel(queue, kernel, 2, nullptr, globalWorkSize, localWorkSize, 0, nullptr, nullptr);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Execution kernel error : d" << err;
+	err = clEnqueueNDRangeKernel(queue_, kernel_, 2, nullptr, globalWorkSize, localWorkSize, 0, nullptr, nullptr);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Execution kernel error : d") << err;
 		clReleaseMemObject(sourceBuffer);
 		clReleaseMemObject(targetBuffer);
 		clReleaseMemObject(outputBuffer);
@@ -381,13 +429,14 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	}
 
 	// Ждем завершения
-	clFinish(queue);
+	clFinish(queue_);
 
 	// Читаем результат
 	int finalResult[3];
-	err = clEnqueueReadBuffer(queue, outputBuffer, CL_TRUE, 0, 3 * sizeof(int), finalResult, 0, nullptr, nullptr);
-	if (err != CL_SUCCESS) {
-		qWarning() << "Read result error : " << err;
+	err = clEnqueueReadBuffer(queue_, outputBuffer, CL_TRUE, 0, 3 * sizeof(int), finalResult, 0, nullptr, nullptr);
+	if (err != CL_SUCCESS)
+	{
+		qWarning() << QString::fromUtf8("Read result error : ") << err;
 	}
 
 	// Освобождаем ресурсы
@@ -395,32 +444,46 @@ QPoint OpenCLImageFinder::findFirstMatchMinimal(const QImage& source, const QIma
 	clReleaseMemObject(targetBuffer);
 	clReleaseMemObject(outputBuffer);
 
-	qDebug() << "Detect duration : " << timer.elapsed() << " ms";
+	qDebug() << QString::fromUtf8("Detect duration : ") << timer.elapsed() << QString::fromUtf8(" ms");
 
-	if (finalResult[0] != 0) {
-		qDebug() << "Found position : " << finalResult[1] << finalResult[2] << ", func ret " << finalResult[0];
+	if (finalResult[0] != 0)
+	{
+		qDebug() << QString::fromUtf8("Found position : ") << finalResult[1] << finalResult[2] << QString::fromUtf8(", func ret ") << finalResult[0];
 		return QPoint(finalResult[1], finalResult[2]);
 	}
-	else {
-		qDebug() << "Position not found";
+	else
+	{
+		qDebug() << QString::fromUtf8("Position not found");
 		return QPoint(-1, -1);
 	}
 }
 
-QString OpenCLImageFinder::getDeviceInfo() const
+QString OpenCLImageFinder::GetDeviceInfo() const
 {
-	if (!device) return "Device is not initialized.";
+	if (!device_)
+	{
+		return QString::fromUtf8("Device is not initialized.");
+	}
 
-	char deviceName[128] = { 0 };
-	clGetDeviceInfo(device, CL_DEVICE_NAME, sizeof(deviceName), deviceName, nullptr);
+	char device_name[128] = { 0 };
+	clGetDeviceInfo(device_, CL_DEVICE_NAME, sizeof(device_name), device_name, nullptr);
 
-	cl_device_type deviceType;
-	clGetDeviceInfo(device, CL_DEVICE_TYPE, sizeof(deviceType), &deviceType, nullptr);
+	cl_device_type device_type;
+	clGetDeviceInfo(device_, CL_DEVICE_TYPE, sizeof(device_type), &device_type, nullptr);
 
-	QString typeStr;
-	if (deviceType & CL_DEVICE_TYPE_GPU) typeStr = "GPU";
-	else if (deviceType & CL_DEVICE_TYPE_CPU) typeStr = "CPU";
-	else typeStr = "Unknown";
+	QString type_str;
+	if (device_type & CL_DEVICE_TYPE_GPU)
+	{
+		type_str = QString::fromUtf8("GPU");
+	}
+	else if (device_type & CL_DEVICE_TYPE_CPU)
+	{
+		type_str = QString::fromUtf8("CPU");
+	}
+	else
+	{
+		type_str = QString::fromUtf8("Unknown");
+	}
 
-	return QString("Device: %1 (%2)").arg(deviceName).arg(typeStr);
+	return QString::fromUtf8("Device: %1 (%2)").arg(device_name).arg(type_str);
 }
