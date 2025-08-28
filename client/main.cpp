@@ -12,5 +12,5 @@ int main(int argc, char *argv[])
 
     MainWidget w;
     w.show();
-    return a.exec();
+    return app.exec();
 }
