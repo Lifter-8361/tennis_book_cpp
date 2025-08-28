@@ -5,6 +5,7 @@
 
 int main(int argc, char *argv[])
 {
+    setlocale(LC_ALL, "Russian");
     QApplication app(argc, argv);
 
     app.setOrganizationName(QString::fromUtf8("Ssipta"));
