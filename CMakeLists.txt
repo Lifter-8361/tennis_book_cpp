@@ -16,6 +16,6 @@ include(path.cmake)
 add_subdirectory(client)
 add_subdirectory(server)
 
-if(QT_VERSION_MAJOR EQUAL 6)
+if(QT_VERSION_MAJOR EQUAL 6) 
     qt_finalize_executable(book_tennis_client)
 endif()
