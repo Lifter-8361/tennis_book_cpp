@@ -529,6 +529,12 @@ void OpenCLImageFinder::OnStartClicked()
 	QPoint plus_point;
 	while (!image_detected)
 	{
+		if (QThread::currentThread()->isInterruptionRequested())
+		{
+			qDebug() << "Interrupted!";
+			return;
+		}
+
 		QPixmap screenshot = screen->grabWindow(0);
 		QImage source_image = screenshot.toImage();
 		source_image = source_image.copy(0, source_image.height() - 200, 400, 200); // В идеале от этого избавиться
@@ -549,6 +555,11 @@ void OpenCLImageFinder::OnStartClicked()
 	image_detected = false;
 	while (!image_detected)
 	{
+		if (QThread::currentThread()->isInterruptionRequested())
+		{
+			qDebug() << "Interrupted!";
+			return;
+		}
 		const QPixmap screenshot = screen->grabWindow(0);
 		QImage source_image = screenshot.toImage();
 		source_image = source_image.copy(detect_area_.x, detect_area_.y, detect_area_.width, detect_area_.height);
@@ -571,5 +582,5 @@ void OpenCLImageFinder::OnStartClicked()
 
 void OpenCLImageFinder::OnStopClicked()
 {
-
+	QThread::currentThread()->requestInterruption();
 }
