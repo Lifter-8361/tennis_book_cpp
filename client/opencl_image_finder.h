@@ -6,6 +6,8 @@
 #include <QVector>
 #include <CL/opencl.h>
 
+#include "geometry_area.h"
+
 class OpenCLImageFinder final
 	: public QObject
 {
@@ -20,6 +22,18 @@ public:
 
 	QString GetDeviceInfo() const;
 
+	void SetParams(const geometry_area& area, int monitor_number);
+
+Q_SIGNALS:
+
+	void Failed();
+	void Succeed();
+
+public Q_SLOT:
+
+	void OnStartClicked();
+	void OnStopClicked();
+
 private:
 	bool CompileKernel();
 	void CleanupOpenCL();
@@ -28,10 +42,15 @@ private:
 	QImage ConvertToGrayscale(const QImage& image);
 	QVector<float> ConvertGrayscaleToFloatArray(const QImage& grayscaleImage);
 
+private:
+
 	cl_context context_;
 	cl_device_id device_;
 	cl_command_queue queue_;
 	cl_program program_;
 	cl_kernel kernel_;
 	bool is_initialized_;
+
+	geometry_area detect_area_ = {};
+	int monitor_number_ = 0;
 };

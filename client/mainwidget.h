@@ -1,6 +1,8 @@
 #pragma once
 
 #include <QWidget>
+#include <QThread>
+#include "geometry_area.h"
 #include "opencl_image_finder.h"
 
 class QLabel;
@@ -18,9 +20,13 @@ private Q_SLOTS:
 
     void OnStartButtonClicked();
 
+    void OnStopButtonClicked();
+
     void OnMonitorNumberChanged(int monitor_number);
 
     void OnTestMonitorImageButtonClicked();
+
+    void OnPixmapFound();
 
 protected:
 
@@ -49,13 +55,9 @@ private:
 
     int monitor_number_ = 0;
 
-    struct geometry_area
-    {
-        int x = 375;
-        int y = 160;
-        int width = 550;
-        int height = 950;
-    } detect_area_;
+    geometry_area detect_area_;
 
     QPoint mouse_click_point_{2500,1100};
+
+    QThread worker_;
 };

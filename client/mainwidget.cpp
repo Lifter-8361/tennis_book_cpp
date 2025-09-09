@@ -49,6 +49,13 @@ MainWidget::MainWidget(QWidget *parent)
 {
 	ReadSettings();
     CreateUi();
+
+	bool connection = true;
+	connection = connect(&worker_, &QThread::started, &finder_, &OpenCLImageFinder::OnStartClicked); Q_ASSERT(connection);
+	connection = connect(&finder_, &OpenCLImageFinder::Failed, &worker_, &QThread::quit); Q_ASSERT(connection);
+	connection = connect(&finder_, &OpenCLImageFinder::Succeed, this, &MainWidget::OnPixmapFound); Q_ASSERT(connection);
+	connection = connect(&worker_, &QThread::finished, &finder_, &OpenCLImageFinder::OnStopClicked); Q_ASSERT(connection);
+	finder_.moveToThread(&worker_);
 }
 
 void MainWidget::ReadSettings()
@@ -90,8 +97,11 @@ void MainWidget::CreateUi()
 	main_lay->addLayout(CreateClickControl());
 	
 	QPushButton* start_button = new QPushButton("start");
+	QPushButton* stop_button = new QPushButton("stop");
 	main_lay->addWidget(start_button);
+	main_lay->addWidget(stop_button);
 	bool connection = connect(start_button, &QPushButton::clicked, this, &MainWidget::OnStartButtonClicked); Q_ASSERT(connection);
+	connection = connect(stop_button, &QPushButton::clicked, this, &MainWidget::OnStopButtonClicked); Q_ASSERT(connection);
 
 	setLayout(main_lay);
 }
@@ -196,74 +206,15 @@ QLayout* MainWidget::CreateClickControl()
 
 void MainWidget::OnStartButtonClicked()
 {
-    qDebug() << "device_info = " << finder_.GetDeviceInfo();
-    //Тут добавить проверку на то, что список устройств не пуст
+	finder_.SetParams(detect_area_, monitor_number_);
+	worker_.start();
+}
 
-    QImage target_image("://resources/input_pix.bmp");//тут загрузить изображение из ресурсов
-    if (target_image.isNull())
-    {
-        qWarning() << QString::fromUtf8("Не удалось загрузить изображение");
-        return;
-    }
-
-	QImage message_image("://resources/start_pix.bmp");//тут загрузить изображение из ресурсов
-	if (message_image.isNull())
-	{
-		qWarning() << QString::fromUtf8("Не удалось загрузить изображение");
-		return;
-	}
-
-
-    bool image_detected = false;
-    QList<QScreen*> screen_list = QGuiApplication::screens();
-    qDebug() << "screeens count = " << screen_list.size();
-    QScreen* screen = screen_list[monitor_number_];
-
-    int msec_duration = 0;
-	QPoint plus_point;
-    while(!image_detected)
-    {
-        QPixmap screenshot = screen->grabWindow(0);
-        QImage source_image = screenshot.toImage();
-        source_image = source_image.copy(0, source_image.height() - 200, 400, 200); // В идеале от этого избавиться
-
-        QElapsedTimer timer;
-        timer.start();
-        QPoint found_pos = finder_.FindFirstMatchMinimal(source_image, target_image, 0.95); // 0.95 по-умолчанию. Выпилить эту константу в таком виде
-        if (found_pos.x() != -1)
-        {
-            image_detected = true;
-            msec_duration = timer.elapsed();
-			plus_point = found_pos;
-        }
-    }
-
-    qDebug() << QString::fromUtf8("Plus image found. Duration : %1 msecs").arg(msec_duration);
-
-    image_detected = false;
-    while (!image_detected)
-    {
-		const QPixmap screenshot = screen->grabWindow(0);
-		QImage source_image = screenshot.toImage();
-		source_image = source_image.copy(detect_area_.x, detect_area_.y, detect_area_.width, detect_area_.height);
-
-		qDebug() << "h = " << source_image.height() << ", w = " << source_image.width();
-
-		QElapsedTimer timer;
-		timer.start();
-		QPoint found_pos = finder_.FindFirstMatchMinimal(source_image, message_image, 0.95);
-		if (found_pos.x() != -1)
-		{
-			image_detected = true;
-			msec_duration = timer.elapsed();
-			qDebug() << QString::fromUtf8("Image detected. Duration : %1 msecs").arg(msec_duration);
-		}
-    }
-
-	QElapsedTimer timer;
-	timer.start();
-	ClickAndSendPlusSymbol(mouse_click_point_);
-	qDebug() << QString::fromUtf8("Clicked and sent plus. Duration : %1 msecs").arg(timer.elapsed());
+void MainWidget::OnStopButtonClicked()
+{
+	worker_.requestInterruption();
+	worker_.exit();
+	worker_.wait();
 }
 
 
@@ -284,6 +235,16 @@ void MainWidget::OnTestMonitorImageButtonClicked() // автоматизиров
 	lbl->setPixmap(QPixmap::fromImage(source_image));
 	lbl->setGeometry(100, 100, 100, 100);
 	lbl->show();
+}
+
+void MainWidget::OnPixmapFound()
+{
+	QElapsedTimer timer;
+	timer.start();
+	ClickAndSendPlusSymbol(mouse_click_point_);
+	qDebug() << QString::fromUtf8("Clicked and sent plus. Duration : %1 msecs").arg(timer.elapsed());
+	worker_.exit();
+	worker_.wait();
 }
 
 void MainWidget::ClickAndSendPlusSymbol(const QPoint& point_to_click)

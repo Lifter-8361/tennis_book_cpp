@@ -4,6 +4,10 @@
 #include <QThread>
 #include <cmath>
 
+#include <QScreen>
+#include <QGuiApplication>
+#include <QPixmap>
+
 #if DEBUG_GRAYSCALE
 #include <QLabel>
 #endif
@@ -486,4 +490,86 @@ QString OpenCLImageFinder::GetDeviceInfo() const
 	}
 
 	return QString::fromUtf8("Device: %1 (%2)").arg(device_name).arg(type_str);
+}
+
+void OpenCLImageFinder::SetParams(const geometry_area& area, int monitor_number)
+{
+	detect_area_ = area;
+	monitor_number_ = monitor_number;
+}
+
+void OpenCLImageFinder::OnStartClicked()
+{
+	qDebug() << "device_info = " << GetDeviceInfo();
+	//Тут добавить проверку на то, что список устройств не пуст
+
+	QImage target_image("://resources/input_pix.bmp");//тут загрузить изображение из ресурсов
+	if (target_image.isNull())
+	{
+		qWarning() << QString::fromUtf8("Не удалось загрузить изображение");
+		emit Failed();
+		return;
+	}
+
+	QImage message_image("://resources/start_pix.bmp");//тут загрузить изображение из ресурсов
+	if (message_image.isNull())
+	{
+		qWarning() << QString::fromUtf8("Не удалось загрузить изображение");
+		emit Failed();
+		return;
+	}
+
+
+	bool image_detected = false;
+	QList<QScreen*> screen_list = QGuiApplication::screens();
+	qDebug() << "screeens count = " << screen_list.size();
+	QScreen* screen = screen_list[monitor_number_];
+
+	int msec_duration = 0;
+	QPoint plus_point;
+	while (!image_detected)
+	{
+		QPixmap screenshot = screen->grabWindow(0);
+		QImage source_image = screenshot.toImage();
+		source_image = source_image.copy(0, source_image.height() - 200, 400, 200); // В идеале от этого избавиться
+
+		QElapsedTimer timer;
+		timer.start();
+		QPoint found_pos = FindFirstMatchMinimal(source_image, target_image, 0.95); // 0.95 по-умолчанию. Выпилить эту константу в таком виде
+		if (found_pos.x() != -1)
+		{
+			image_detected = true;
+			msec_duration = timer.elapsed();
+			plus_point = found_pos;
+		}
+	}
+
+	qDebug() << QString::fromUtf8("Plus image found. Duration : %1 msecs").arg(msec_duration);
+
+	image_detected = false;
+	while (!image_detected)
+	{
+		const QPixmap screenshot = screen->grabWindow(0);
+		QImage source_image = screenshot.toImage();
+		source_image = source_image.copy(detect_area_.x, detect_area_.y, detect_area_.width, detect_area_.height);
+
+		qDebug() << "h = " << source_image.height() << ", w = " << source_image.width();
+
+		QElapsedTimer timer;
+		timer.start();
+		QPoint found_pos = FindFirstMatchMinimal(source_image, message_image, 0.95);
+		if (found_pos.x() != -1)
+		{
+			image_detected = true;
+			msec_duration = timer.elapsed();
+			qDebug() << QString::fromUtf8("Image detected. Duration : %1 msecs").arg(msec_duration);
+		}
+	}
+
+	emit Succeed();
+}
+
+void OpenCLImageFinder::OnStopClicked()
+{
+
 }
